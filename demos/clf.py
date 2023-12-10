@@ -1,13 +1,12 @@
-import marveltoolbox as mt 
+import marveltoolbox as mt
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 
 class Confs(mt.BaseConfs):
     def __init__(self):
         super().__init__()
-    
+
     def get_dataset(self):
         self.dataset = 'mnist'
         self.nc = 1
@@ -24,7 +23,7 @@ class Confs(mt.BaseConfs):
         self.ngpu = len(self.device_ids)
         self.device = torch.device(
             "cuda:{}".format(self.device_ids[0]) if \
-            (torch.cuda.is_available() and self.ngpu > 0) else "cpu")
+                (torch.cuda.is_available() and self.ngpu > 0) else "cpu")
 
 
 class Trainer(mt.BaseTrainer, Confs):
@@ -35,7 +34,7 @@ class Trainer(mt.BaseTrainer, Confs):
         self.models['C'] = mt.nn.dcgan.Enet32(self.nc, self.nz).to(self.device)
         self.optims['C'] = torch.optim.Adam(
             self.models['C'].parameters(), lr=1e-4, betas=(0.5, 0.99))
-        
+
         self.train_loader, self.val_loader, self.test_loader, _ = \
             mt.datasets.load_data(self.dataset, 1.0, 0.8, self.batch_size, 32, None, False)
 
@@ -55,7 +54,7 @@ class Trainer(mt.BaseTrainer, Confs):
                 self.print_logs(epoch, i)
 
         return loss.item()
-                
+
     def eval(self, epoch):
         self.models['C'].eval()
         correct = 0.0
@@ -79,7 +78,3 @@ class Trainer(mt.BaseTrainer, Confs):
 if __name__ == '__main__':
     trainer = Trainer()
     trainer.run(load_best=False, retrain=True)
-
-
-    
-

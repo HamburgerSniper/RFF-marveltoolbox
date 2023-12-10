@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append('..')
 import marveltoolbox as mt
 import torch
@@ -25,4 +26,3 @@ if __name__ == '__main__':
 
     test_net = mt.nn.MobileFaceNet(embedding_size=512)
     print(test_net)
-

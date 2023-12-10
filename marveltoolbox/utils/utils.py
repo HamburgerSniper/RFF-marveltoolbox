@@ -1,12 +1,8 @@
-import os
-import shutil
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import torchvision as tv
-import matplotlib.pyplot as plt
 from torch.distributions import MultivariateNormal
+
 
 def params_count(model):
     """
@@ -15,6 +11,7 @@ def params_count(model):
         model (model): model to count the number of parameters.
     """
     return np.sum([p.numel() for p in model.parameters()]).item()
+
 
 def separate_bn_paras(modules):
     if not isinstance(modules, list):
@@ -36,20 +33,22 @@ def separate_bn_paras(modules):
 
 def get_jacobian(fun, x, noutputs):
     x_size = list(x.size())
-    x = x.unsqueeze(0).repeat(noutputs, *([1]*(len(x_size))) ).detach().requires_grad_(True)
+    x = x.unsqueeze(0).repeat(noutputs, *([1] * (len(x_size)))).detach().requires_grad_(True)
     y = fun(x)
     y.backward(torch.eye(noutputs))
-    return x.grad.view(noutputs,*x_size)
+    return x.grad.view(noutputs, *x_size)
 
-def Hessian_matrix(fun,x):
-    #y is a scalar Tensor
+
+def Hessian_matrix(fun, x):
+    # y is a scalar Tensor
     def get_grad(xx):
         y = fun(xx)
-        grad, = torch.autograd.grad(y,xx,create_graph=True,grad_outputs=torch.ones_like(y))
+        grad, = torch.autograd.grad(y, xx, create_graph=True, grad_outputs=torch.ones_like(y))
         return grad
-        
+
     x_size = x.numel()
     return get_jacobian(get_grad, x, x_size)
+
 
 def analyze_latent_space(z, y, class_num=2):
     gaussians = []
@@ -58,23 +57,25 @@ def analyze_latent_space(z, y, class_num=2):
         n = len(idx)
         z_c = z[idx]
         mu_c = torch.mean(z_c, dim=0, keepdim=True)
-        v_c = z_c-mu_c.repeat(n, 1)
-        var_c = 1/n * v_c.transpose(0, 1).matmul(v_c)
+        v_c = z_c - mu_c.repeat(n, 1)
+        var_c = 1 / n * v_c.transpose(0, 1).matmul(v_c)
         gaussian = MultivariateNormal(loc=mu_c.clone().detach(), covariance_matrix=var_c.clone().detach())
         gaussians.append(gaussian)
     return gaussians
+
 
 def log_pz(z, y, gaussians, device):
     n, c = len(z), len(gaussians)
     V = torch.zeros(n, c, device=device)
     mask = F.one_hot(y, num_classes=c).type_as(z).to(device)
-    for i in range(c): 
+    for i in range(c):
         V[:, i] = gaussians[i].log_prob(z)
-    A = V*mask
+    A = V * mask
     A = torch.sum(A, dim=1)
     return A.view(n, -1)
 
-def sample(n, netD, gaussians):    
+
+def sample(n, netD, gaussians):
     samples = []
     K = len(gaussians)
     for i in range(n):
@@ -96,6 +97,7 @@ def one_hot_encode(labels, n_labels):
     y[range(labels.size), labels] = 1
 
     return y
+
 
 def logit(x):
     """

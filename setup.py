@@ -1,4 +1,5 @@
 import os
+
 from setuptools import setup, find_packages
 
 with open('VERSION', 'r') as f:
@@ -17,7 +18,6 @@ def req_file(filename, folder="requirements"):
 
 install_requires = req_file("requirements.txt")
 
-
 setup(
     name='marveltoolbox',
     version=version,
@@ -31,23 +31,23 @@ setup(
     license="GNU GPLv3 License",
     description='A toolbox for DL communication research.',
     classifiers=[
-            'Development Status :: 3 - Alpha',
-            'Intended Audience :: Developers',
-            'Intended Audience :: Science/Research',
-            'Intended Audience :: Information Technology',
-            'Topic :: Scientific/Engineering',
-            'Topic :: Scientific/Engineering :: Artificial Intelligence',
-            'Topic :: Utilities',
-            'Programming Language :: Python :: 3',
-            'Programming Language :: Python :: 3.8',
-            'Environment :: Console',
-            'Natural Language :: English',
-            'Operating System :: OS Independent',
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: Developers',
+        'Intended Audience :: Science/Research',
+        'Intended Audience :: Information Technology',
+        'Topic :: Scientific/Engineering',
+        'Topic :: Scientific/Engineering :: Artificial Intelligence',
+        'Topic :: Utilities',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.8',
+        'Environment :: Console',
+        'Natural Language :: English',
+        'Operating System :: OS Independent',
     ],
     keywords='deep learning, ' \
              'machine learning, supervised learning, ' \
              'unsupervised learning, communication, ' \
-             'complex value matrix computiton', 
+             'complex value matrix computiton',
     python_requires='>=3.8',
     platforms=["Linux"],
     # data_files=[('',['VERSION'])],

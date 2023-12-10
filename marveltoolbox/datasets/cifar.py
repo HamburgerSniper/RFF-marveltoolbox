@@ -1,23 +1,25 @@
-from PIL import Image
-from typing import Dict, Tuple
-import collections
+import os
+import random
+from random import shuffle
+from typing import Tuple
+
+import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
+from PIL import Image
 from torch.utils.data import DataLoader
-import numpy as np
-import random
-from random import shuffle
-import os
+
 
 class saturation:
     def __init__(self, p=265):
-        self.p=p
+        self.p = p
 
     def __call__(self, x):
-        xcen = x*2-1
-        out = torch.sign(xcen)* torch.abs(xcen)**(2/self.p) /2 + 1/2
+        xcen = x * 2 - 1
+        out = torch.sign(xcen) * torch.abs(xcen) ** (2 / self.p) / 2 + 1 / 2
         return out
+
 
 def get_suffle_index(data_len, seed=0):
     subset_index = [i for i in range(data_len)]
@@ -25,8 +27,10 @@ def get_suffle_index(data_len, seed=0):
     shuffle(subset_index)
     return subset_index
 
+
 class CIFAR_SELECT(torchvision.datasets.CIFAR10):
-    def __init__(self, data_root, label_list=None, train=True, transform=None, target_transform=None, download=False, is_target_attack=False, is_pair=False):
+    def __init__(self, data_root, label_list=None, train=True, transform=None, target_transform=None, download=False,
+                 is_target_attack=False, is_pair=False):
         data_path = os.path.join(data_root, 'CIFAR10')
         super().__init__(data_path, train, transform, target_transform, download)
         self.label_list = label_list
@@ -39,16 +43,17 @@ class CIFAR_SELECT(torchvision.datasets.CIFAR10):
                 self.remap_dict[label] = i
             self.preprocess()
             self.class_num = len(label_list)
-        
+
         if self.is_target_attack:
             self.shuffle_targets()
-        
+
         if self.is_pair:
             self.shuffle_data()
             # self.remap_dict = self.one_vs_all(label_list[0], label_list)
+
     def shuffle_targets(self):
         shuffle_targets = []
-        
+
         for target in self.targets:
             target_list = [i for i in range(self.class_num)]
             target_list.remove(int(target))
@@ -58,7 +63,7 @@ class CIFAR_SELECT(torchvision.datasets.CIFAR10):
 
     def shuffle_data(self):
         shuffle_data = []
-        
+
         for i, (sample, target) in enumerate(zip(self.data, self.targets)):
             index_list = [j for j in range(len(self.data))]
             index_list.remove(i)
@@ -69,7 +74,6 @@ class CIFAR_SELECT(torchvision.datasets.CIFAR10):
                     break
         self.target_data = shuffle_data
         self.targets = [0 for i in range(len(self.data))]
-
 
     def one_vs_all(self, target, label_list):
         remap_dict = {}
@@ -87,15 +91,15 @@ class CIFAR_SELECT(torchvision.datasets.CIFAR10):
     def preprocess(self):
         selected_data = []
         selected_targets = []
-        
+
         for i in range(len(self.data)):
             if self.targets[i] in self.label_list:
                 selected_data.append(self.data[i])
                 selected_targets.append(self.target_remap(self.targets[i]))
-        
+
         self.data = selected_data
         self.targets = selected_targets
-    
+
     def __getitem__(self, index):
         """
         Args:
@@ -105,7 +109,7 @@ class CIFAR_SELECT(torchvision.datasets.CIFAR10):
             tuple: (image, target) where target is index of the target class.
         """
         img, target = self.data[index], int(self.targets[index])
-        
+
         if self.is_pair:
             target_img = self.target_data[index]
         # doing this so that it is consistent with all other datasets
@@ -116,7 +120,7 @@ class CIFAR_SELECT(torchvision.datasets.CIFAR10):
 
         if self.transform is not None:
             img = self.transform(img)
-        
+
         if self.is_pair:
             target_img = self.transform(target_img)
 
@@ -129,9 +133,10 @@ class CIFAR_SELECT(torchvision.datasets.CIFAR10):
         return img, target
 
 
-def load_cifar10(data_root, 
-    downsample_pct: float = 0.5, train_pct: float = 0.8, batch_size: int = 50, img_size: int = 32, label_list: list = None, is_norm=False
-) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
+def load_cifar10(data_root,
+                 downsample_pct: float = 0.5, train_pct: float = 0.8, batch_size: int = 50, img_size: int = 32,
+                 label_list: list = None, is_norm=False
+                 ) -> Tuple[DataLoader, DataLoader, DataLoader, DataLoader]:
     """
     Load MNIST dataset (download if necessary) and split data into training,
         validation, and test sets.
@@ -149,42 +154,42 @@ def load_cifar10(data_root,
     if is_norm:
         train_transform = transforms.Compose(
             [
-            # transforms.RandomCrop(32, padding=4),
-            transforms.Resize(img_size),
-            # transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            # saturation(p=256)
+                # transforms.RandomCrop(32, padding=4),
+                transforms.Resize(img_size),
+                # transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                # saturation(p=256)
             ]
-                            
-        ) 
+
+        )
         eval_transform = transforms.Compose(
             [
-            transforms.Resize(img_size),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-            # saturation(p=256)
-        ]
-        ) 
+                transforms.Resize(img_size),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                # saturation(p=256)
+            ]
+        )
     else:
         train_transform = transforms.Compose(
             [
-            # transforms.RandomCrop(32, padding=4),
-            transforms.Resize(img_size),
-            # transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            # saturation(p=256)
+                # transforms.RandomCrop(32, padding=4),
+                transforms.Resize(img_size),
+                # transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                # saturation(p=256)
             ]
-                            
-        ) 
+
+        )
         eval_transform = transforms.Compose(
             [
-            transforms.Resize(img_size),
-            transforms.ToTensor(),
-            # saturation(p=256)
-        ]
-        ) 
-    # Load training set
+                transforms.Resize(img_size),
+                transforms.ToTensor(),
+                # saturation(p=256)
+            ]
+        )
+        # Load training set
     # pyre-fixme[16]: Module `datasets` has no attribute `MNIST`.
 
     train_valid_set = CIFAR_SELECT(data_root, label_list, train=True, transform=train_transform, download=True)
@@ -203,7 +208,7 @@ def load_cifar10(data_root,
     #         len(train_valid_set) - downsampled_num_examples,
     #     ],
     # )
-        # Partition into training/validation
+    # Partition into training/validation
     downsampled_num_examples = int(downsample_pct * len(train_valid_set))
     n_train_examples = int(train_pct * downsampled_num_examples)
     n_valid_examples = downsampled_num_examples - n_train_examples
@@ -229,8 +234,8 @@ def load_cifar10(data_root,
     # Load test set
     # pyre-fixme[16]: Module `datasets` has no attribute `MNIST`.
     test_set_all = CIFAR_SELECT(data_root,
-        label_list=label_list, train=False, download=True, transform=eval_transform
-    )
+                                label_list=label_list, train=False, download=True, transform=eval_transform
+                                )
     subset_index = get_suffle_index(len(test_set_all))
 
     downsampled_num_test_examples = int(downsample_pct * len(test_set_all))
@@ -240,8 +245,9 @@ def load_cifar10(data_root,
     test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=2)
 
     targeted_attack_test_set_all = CIFAR_SELECT(data_root,
-        label_list=label_list, train=False, download=True, transform=eval_transform, is_target_attack=False
-    )
+                                                label_list=label_list, train=False, download=True,
+                                                transform=eval_transform, is_target_attack=False
+                                                )
     subset_index = get_suffle_index(len(targeted_attack_test_set_all))
 
     downsampled_num_test_examples = int(downsample_pct * len(test_set_all))
@@ -254,8 +260,8 @@ def load_cifar10(data_root,
 
 
 def load_cifar100(data_root,
-    downsample_pct: float = 0.5, train_pct: float = 0.8, batch_size: int = 50
-) -> Tuple[DataLoader, DataLoader, DataLoader]:
+                  downsample_pct: float = 0.5, train_pct: float = 0.8, batch_size: int = 50
+                  ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
     Load MNIST dataset (download if necessary) and split data into training,
         validation, and test sets.
@@ -276,7 +282,7 @@ def load_cifar100(data_root,
     # )
     transform = transforms.Compose(
         [transforms.ToTensor(), transforms.Normalize((0.5,), (1,))]
-    ) 
+    )
     # Load training set
     # pyre-fixme[16]: Module `datasets` has no attribute `MNIST`.
 

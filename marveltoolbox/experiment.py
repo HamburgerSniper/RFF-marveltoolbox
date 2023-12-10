@@ -1,14 +1,10 @@
-import torch 
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision as tv
-from torchvision.utils import save_image
-import numpy as np
-import os
 import logging
+import os
 import traceback
+
+import torch
 from marveltoolbox import utils
-import shutil
+
 
 class BaseExperiment():
     def __init__(self, confs):
@@ -27,7 +23,6 @@ class BaseExperiment():
             print(self.exp_path, 'dose not exist')
             os.makedirs(self.exp_path)
 
-    
     def preprocessing(self):
         kwargs = {'num_workers': 0, 'drop_last': False, 'pin_memory': True} if torch.cuda.is_available() else {}
         for key in self.datasets.keys():
@@ -40,7 +35,7 @@ class BaseExperiment():
                 self.results[trainer][dataset] = {}
 
     def set_logger(self):
-        self.logger = logging.getLogger(__name__) 
+        self.logger = logging.getLogger(__name__)
         self.logger.handlers = []
         self.logger.setLevel(logging.INFO)
         log_file_name = '{}.log'.format(self.save_flag)
@@ -62,13 +57,12 @@ class BaseExperiment():
 
     def main(self):
         pass
-                
 
     def run(self, *args, **kwargs):
         try:
             utils.set_seed(self.seed)
             self.set_logger()
-            temp_results = self.load() 
+            temp_results = self.load()
             if kwargs['is_rerun'] or (temp_results is None):
                 self.main(*args, **kwargs)
                 self.save()
@@ -92,7 +86,6 @@ class BaseExperiment():
         file_name = os.path.join(self.exp_path, 'Exp_{}.pth.tar'.format(self.save_flag))
         torch.save(self.results, file_name)
 
-        
     def load(self):
         results = None
         result_file = os.path.join(self.exp_path, 'Exp_{}.pth.tar'.format(self.save_flag))

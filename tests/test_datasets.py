@@ -1,7 +1,7 @@
 import sys
+
 sys.path.append('..')
 import marveltoolbox as mt
-import torch
 
 if __name__ == '__main__':
     loader = mt.datasets.load_moons(10000, 50, True)

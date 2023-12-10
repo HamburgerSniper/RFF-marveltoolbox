@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+
 class TorchComplex:
     def __init__(self):
         pass
@@ -8,45 +9,44 @@ class TorchComplex:
     @staticmethod
     def abs(tensor):
         shape = tensor.shape
-        if len(shape)>1:
+        if len(shape) > 1:
             tensor = tensor.flatten().view(-1, 2)
-            tensor_abs = ((tensor[:, 0]**2 + tensor[:, 1]**2)**0.5)
+            tensor_abs = ((tensor[:, 0] ** 2 + tensor[:, 1] ** 2) ** 0.5)
             return tensor_abs.view(*shape[:-1])
         else:
-            return (tensor[0]**2 + tensor[1]**2)**0.5
+            return (tensor[0] ** 2 + tensor[1] ** 2) ** 0.5
 
     @staticmethod
     def phase(tensor):
         shape = tensor.shape
-        if len(shape)>1:
+        if len(shape) > 1:
             tensor = tensor.view(-1, 2)
-            return torch.atan(tensor[:, 1]/tensor[:, 0]).view(*shape[:-1])
+            return torch.atan(tensor[:, 1] / tensor[:, 0]).view(*shape[:-1])
         else:
-            return torch.atan(tensor[1]/tensor[0])
+            return torch.atan(tensor[1] / tensor[0])
 
     @staticmethod
     def phase_np(tensor):
         shape = tensor.shape
-        if len(shape)>1:
+        if len(shape) > 1:
             tensor = tensor.view(-1, 2)
-            return np.angle(tensor[:, 0].numpy()+ tensor[:, 1].numpy()*1j)
+            return np.angle(tensor[:, 0].numpy() + tensor[:, 1].numpy() * 1j)
         else:
-            return np.angle(tensor[0].item()+ tensor[1].item()*1j)
-
+            return np.angle(tensor[0].item() + tensor[1].item() * 1j)
 
     @staticmethod
     def energy(tensor, keep_batch=True):
         if not keep_batch:
             tensor = tensor.view(-1, 2)
-            return torch.sum(tensor[:, 0]**2 + tensor[:, 1]**2)
+            return torch.sum(tensor[:, 0] ** 2 + tensor[:, 1] ** 2)
         else:
             N = len(tensor)
             tensor = tensor.view(N, -1, 2)
-            return torch.sum(tensor[:, :, 0]**2 + tensor[:, :, 1]**2, dim=1)
+            return torch.sum(tensor[:, :, 0] ** 2 + tensor[:, :, 1] ** 2, dim=1)
 
     @staticmethod
     def power(tensor):
-        return torch.sqrt(torch.mean(tensor[:, 0]**2 + tensor[:, 1]**2))
+        return torch.sqrt(torch.mean(tensor[:, 0] ** 2 + tensor[:, 1] ** 2))
 
     @staticmethod
     def imag(tensor):
@@ -106,12 +106,12 @@ class TorchComplex:
         tensor = tensor.flatten().view(-1, 2)
         real = tensor[:, :1]
         imag = tensor[:, 1:]
-        denominator = real**2 + imag**2 + eps
-        oreal = real/denominator
-        oimag = -imag/denominator
+        denominator = real ** 2 + imag ** 2 + eps
+        oreal = real / denominator
+        oimag = -imag / denominator
         inv_tensor = torch.cat([oreal, oimag], dim=1)
         return inv_tensor.view(*shape)
-    
+
     @staticmethod
     def inverse(tensor, ntry=5):
         '''
@@ -125,8 +125,8 @@ class TorchComplex:
         # "Section 4.3"
         for i in range(ntry):
             t = i * 0.01
-            E = real + t*imag
-            F = imag - t*real
+            E = real + t * imag
+            F = imag - t * real
             try:
                 FE_inv = F.mm(E.inverse())
                 E_FEF_inv = (E + FE_inv.mm(F)).inverse()
@@ -137,10 +137,10 @@ class TorchComplex:
             if t != 0.0:
                 I = torch.eye(N, device=tensor.device)
                 oreal = E_FEF_inv.mm(I - t * FE_inv)
-                oimag = -1* E_FEF_inv.mm(t * I + FE_inv)
+                oimag = -1 * E_FEF_inv.mm(t * I + FE_inv)
             else:
                 oreal = E_FEF_inv
-                oimag = -1*E_FEF_inv.mm(FE_inv)
+                oimag = -1 * E_FEF_inv.mm(FE_inv)
 
             oreal = oreal.flatten().view(-1, 1)
             oimag = oimag.flatten().view(-1, 1)
@@ -157,7 +157,7 @@ class TorchComplex:
         array = TorchComplex.tensor2array(tensor)
         inv_array = np.linalg.inv(array)
         inv_tensor = TorchComplex.array2tensor(inv_array)
-   
+
         return inv_tensor.view(N, N, 2)
 
     @staticmethod
@@ -165,7 +165,6 @@ class TorchComplex:
         ctensor = torch.view_as_complex(tensor)
         ctensor_inv = torch.linalg.inv(ctensor)
         return torch.view_as_real(ctensor_inv)
-
 
     @staticmethod
     def batch_inverse(tensor, ntry=5):
@@ -182,8 +181,8 @@ class TorchComplex:
         # "Section 4.3"
         for i in range(ntry):
             t = i * 0.1
-            E = real + t*imag
-            F = imag - t*real
+            E = real + t * imag
+            F = imag - t * real
             try:
                 FE_inv = F.bmm(E.inverse())
                 E_FEF_inv = (E + FE_inv.bmm(F)).inverse()
@@ -194,16 +193,15 @@ class TorchComplex:
             if t != 0.0:
                 I = torch.eye(N, device=tensor.device)
                 oreal = E_FEF_inv.bmm(I - t * FE_inv)
-                oimag = -1* E_FEF_inv.bmm(t * I + FE_inv)
+                oimag = -1 * E_FEF_inv.bmm(t * I + FE_inv)
             else:
                 oreal = E_FEF_inv
-                oimag = -1*E_FEF_inv.bmm(FE_inv)
+                oimag = -1 * E_FEF_inv.bmm(FE_inv)
 
             oreal = oreal.flatten().view(-1, 1)
             oimag = oimag.flatten().view(-1, 1)
             inv_tensor = torch.cat([oreal, oimag], dim=1)
             return inv_tensor.view(*original_shape)
-
 
     @staticmethod
     def batch_diag(tensor):
@@ -230,11 +228,10 @@ class TorchComplex:
         tensor_temp = tensor.view(-1, D, D, 2)
         mask = torch.zeros_like(tensor_temp)
         mask[:, range(D), range(D), :] += 1.0
-        out = (tensor_temp*mask).sum(dim=(-3, -2))
+        out = (tensor_temp * mask).sum(dim=(-3, -2))
         if keepdim:
             return out.view(*shape[:-3], 1, 1, 2)
         return out.view(*shape[:-3], 2)
-
 
     @staticmethod
     def exp(tensor):
@@ -294,10 +291,10 @@ class TorchComplex:
     @staticmethod
     def conj(tensor):
         shape = tensor.shape
-        tensor_temp = tensor.flatten().view(-1, 2)  
-        tensor_final = torch.cat([tensor_temp[:, :1],  -1 * tensor_temp[:, 1:]], dim=1)
+        tensor_temp = tensor.flatten().view(-1, 2)
+        tensor_final = torch.cat([tensor_temp[:, :1], -1 * tensor_temp[:, 1:]], dim=1)
         return tensor_final.view(*shape)
-    
+
     @staticmethod
     def t(tensor, is_H=True):
         shape = tensor.shape
@@ -314,15 +311,15 @@ class TorchComplex:
     @staticmethod
     def SNR(x, x_origin, keep_batch=False, eps=1e-12):
         px = TorchComplex.energy(x, keep_batch)
-        pn = TorchComplex.energy(x-x_origin, keep_batch)
-        return 10 * torch.log10(px/(pn + eps))
+        pn = TorchComplex.energy(x - x_origin, keep_batch)
+        return 10 * torch.log10(px / (pn + eps))
 
     @staticmethod
     def add_noise(x, noise, SNR):
         px = TorchComplex.energy(x)
         pn = TorchComplex.energy(noise)
-        pr = px/(10 ** (SNR/10))
-        noise_p = torch.sqrt(pr/pn) * noise
+        pr = px / (10 ** (SNR / 10))
+        noise_p = torch.sqrt(pr / pn) * noise
         return x + noise_p
 
     @staticmethod
@@ -331,11 +328,11 @@ class TorchComplex:
         x.shape : (N, D, 2)
         '''
         N, D, _ = x.shape
-        px = TorchComplex.energy(x, keep_batch)/D
+        px = TorchComplex.energy(x, keep_batch) / D
         if not SNR_x is None:
-            rate = 10 ** (SNR_x/10)
-            px = px/(1.0/rate+1.0)
+            rate = 10 ** (SNR_x / 10)
+            px = px / (1.0 / rate + 1.0)
         noise = torch.randn_like(x)
-        pr = px/(10 ** (SNR/10))
-        noise_p = torch.sqrt(pr/2) * noise
+        pr = px / (10 ** (SNR / 10))
+        noise_p = torch.sqrt(pr / 2) * noise
         return noise_p

@@ -1,14 +1,10 @@
-import torch 
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision as tv
-from torchvision.utils import save_image
-import numpy as np
-import os
 import logging
-import traceback
-from marveltoolbox import utils
+import os
 import shutil
+import traceback
+
+import torch
+from marveltoolbox import utils
 
 
 def save_checkpoint(state, is_best, file_path='./', flag=''):
@@ -17,6 +13,7 @@ def save_checkpoint(state, is_best, file_path='./', flag=''):
     if is_best:
         best_file_name = os.path.join(file_path, 'model_best_{}.pth.tar'.format(flag))
         shutil.copyfile(file_name, best_file_name)
+
 
 def load_checkpoint(is_best, file_path='./', flag=''):
     checkpoint = None
@@ -60,13 +57,13 @@ class BaseTrainer():
         if not os.path.exists(self.chkpt_path):
             print(self.chkpt_path, 'dose not exist')
             os.makedirs(self.chkpt_path)
-        
+
         if not os.path.exists(self.log_path):
             print(self.log_path, 'dose not exist')
             os.makedirs(self.log_path)
 
     def set_logger(self):
-        self.logger = logging.getLogger(__name__) 
+        self.logger = logging.getLogger(__name__)
         self.logger.handlers = []
         self.logger.setLevel(logging.INFO)
         log_file_name = '{}.log'.format(self.save_flag)
@@ -89,10 +86,10 @@ class BaseTrainer():
         for key in self.eval_sets.keys():
             self.dataloaders[key] = torch.utils.data.DataLoader(
                 self.eval_sets[key], batch_size=self.batch_size, shuffle=True, **kwargs)
-        
+
     def train(self, epoch):
         return 0.0
-                
+
     def eval(self, epoch):
         return False
 
@@ -115,7 +112,7 @@ class BaseTrainer():
         self.set_logger()
         if not retrain:
             self.load()
-        timer = utils.Timer(self.epochs-self.start_epoch, self.logger)
+        timer = utils.Timer(self.epochs - self.start_epoch, self.logger)
         timer.init()
         for epoch in range(self.start_epoch, self.epochs):
             loss = self.train(epoch)
@@ -131,7 +128,7 @@ class BaseTrainer():
             print(print_str)
             if self.logger is not None:
                 self.logger.info(print_str)
-                
+
         if is_del_loger:
             del self.logger
             self.logger = None
@@ -144,7 +141,7 @@ class BaseTrainer():
             print(print_str)
             if self.logger is not None:
                 self.logger.info(print_str)
-            
+
     def save(self, is_best=False):
         state_dict = {}
         state_dict['epoch'] = self.start_epoch + 1
@@ -152,7 +149,7 @@ class BaseTrainer():
 
         for name, optim in self.optims.items():
             state_dict['optim_{}'.format(name)] = self.optims[name].state_dict()
-        
+
         for name, model in self.models.items():
             state_dict['model_{}'.format(name)] = self.models[name].state_dict()
 
@@ -160,7 +157,7 @@ class BaseTrainer():
             state_dict['scheduler_{}'.format(name)] = self.schedulers[name].state_dict()
 
         save_checkpoint(state_dict, is_best, file_path=self.chkpt_path, flag=self.save_flag)
-        
+
     def load(self, is_best=False):
         chkpt = load_checkpoint(is_best, file_path=self.chkpt_path, flag=self.save_flag)
         if chkpt:
@@ -169,7 +166,7 @@ class BaseTrainer():
 
             for name, optim in self.optims.items():
                 self.optims[name].load_state_dict(chkpt['optim_{}'.format(name)])
-            
+
             for name, model in self.models.items():
                 self.models[name].load_state_dict(chkpt['model_{}'.format(name)])
 
@@ -179,4 +176,3 @@ class BaseTrainer():
             print(print_str)
             if self.logger is not None:
                 self.logger.info(print_str)
-

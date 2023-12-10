@@ -1,30 +1,38 @@
 # marveltoolbox
+
 A marvelous toolbox for DL/DL-based communication research!
 
 ## Features
+
 - [x] Complex value matrix computition APIs；
 - [x] Convenient base trainer and base experment settings；
 - [x] Providing commonly used neural network structures (MLP, CNNs, DCGAN).
 - [x] Adversarial attacks (CW, adaptive CW, PGD and adaptive PGD)
 - [x] Signal processing tools.
 
-
 # Quick Installation Instructions
+
 - Clone the git repository
+
 ```bash
 $ git clone https://github.com/xrj-com/marvaltoolbox.git
 ```
+
 - Navigate to the top level marveltoolbox directory
 - Install marveltoolbox
+
 ```bash
 $ pip install .
 ```
 
 # Quick Start Instructions
+
 ```python
 import marveltoolbox as mt
 ```
+
 - Setting your experiment configs base on **mt.BaseConfs**:
+
 ```python
 class Confs(mt.BaseConfs):
     def __init__(self):
@@ -46,7 +54,9 @@ class Confs(mt.BaseConfs):
             (torch.cuda.is_available() and self.ngpu > 0) else "cpu")
 ```
 
-- Defining your **Trainer** base on mt.BaseTrainer. Using predefined dicts: *models*, *optims*, *schedulers* eta. to preserve your neural networks and optimization settings:
+- Defining your **Trainer** base on mt.BaseTrainer. Using predefined dicts: *models*, *optims*, *schedulers* eta. to
+  preserve your neural networks and optimization settings:
+
 ```python
 class Trainer(mt.BaseTrainer, Confs):
     def __init__(self, confs):
@@ -59,7 +69,10 @@ class Trainer(mt.BaseTrainer, Confs):
         self.train_loader, self.val_loader, self.test_loader, _ = \
             mt.datasets.load_data(confs.dataset, 1.0, 0.8, self.batch_size, 32, None, False)
 ```
-- Predefined methods: *train*, *eval*, *main* need to be implemented according to your own needs. For example, if we want to train a classifier, the Trainer can be defined as follow:
+
+- Predefined methods: *train*, *eval*, *main* need to be implemented according to your own needs. For example, if we
+  want to train a classifier, the Trainer can be defined as follow:
+
 ```python
 class Trainer(mt.BaseTrainer):
     def train(self, epoch):
@@ -97,10 +110,12 @@ class Trainer(mt.BaseTrainer):
 ```
 
 - Training model via:
+
 ```python
 my_trainer = Trainer()
 my_trainer.run(load_best=True, retrain=False)
 ```
+
 - The model and the optimizer will automatically be saved as 'checkpoint_[your flag].pth.tar' each epoch.
 
 Full code can be found in 'demos/clf.py' .
@@ -124,7 +139,9 @@ horovodrun -np 4 python clf.py
 Where '-np' is the number of process.  -->
 
 # Citation
+
 If you found this code useful plase cite our work
+
 ```
 @Electronic{
   Xie2019a,

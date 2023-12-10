@@ -1,5 +1,6 @@
 import torch
 
+
 class BaseConfs:
     def __init__(self):
         self.chkpt_path = './chkpts'
@@ -24,8 +25,7 @@ class BaseConfs:
         self.ngpu = len(self.device_ids)
         self.device = torch.device(
             "cuda:{}".format(self.device_ids[0]) if \
-            (torch.cuda.is_available() and self.ngpu > 0) else "cpu")
-                    
+                (torch.cuda.is_available() and self.ngpu > 0) else "cpu")
 
     def __str__(self):
         print_str = 'Configs:\n'

@@ -3,14 +3,13 @@ Masked Autoregressive Flow for Density Estimation
 arXiv:1705.07057v4
 """
 
+import matplotlib
 import torch
+import torch.distributions as D
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributions as D
-import torchvision.transforms as T
 from torchvision.utils import save_image
 
-import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
@@ -24,7 +23,6 @@ import copy
 
 __all__ = ['MADE', 'MADEMOG', 'MAF', 'MADEMOG', 'RealNVP']
 
-
 parser = argparse.ArgumentParser()
 # action
 parser.add_argument('--train', action='store_true', help='Train a flow.')
@@ -37,25 +35,32 @@ parser.add_argument('--results_file', default='results.txt', help='Filename wher
 parser.add_argument('--no_cuda', action='store_true', help='Do not use cuda.')
 # data
 parser.add_argument('--dataset', default='toy', help='Which dataset to use.')
-parser.add_argument('--flip_toy_var_order', action='store_true', help='Whether to flip the toy dataset variable order to (x2, x1).')
+parser.add_argument('--flip_toy_var_order', action='store_true',
+                    help='Whether to flip the toy dataset variable order to (x2, x1).')
 parser.add_argument('--seed', type=int, default=1, help='Random seed to use.')
 # model
 parser.add_argument('--model', default='maf', help='Which model to use: made, maf.')
 # made parameters
-parser.add_argument('--n_blocks', type=int, default=5, help='Number of blocks to stack in a model (MADE in MAF; Coupling+BN in RealNVP).')
-parser.add_argument('--n_components', type=int, default=1, help='Number of Gaussian clusters for mixture of gaussians models.')
-parser.add_argument('--hidden_size', type=int, default=100, help='Hidden layer size for MADE (and each MADE block in an MAF).')
+parser.add_argument('--n_blocks', type=int, default=5,
+                    help='Number of blocks to stack in a model (MADE in MAF; Coupling+BN in RealNVP).')
+parser.add_argument('--n_components', type=int, default=1,
+                    help='Number of Gaussian clusters for mixture of gaussians models.')
+parser.add_argument('--hidden_size', type=int, default=100,
+                    help='Hidden layer size for MADE (and each MADE block in an MAF).')
 parser.add_argument('--n_hidden', type=int, default=1, help='Number of hidden layers in each MADE.')
 parser.add_argument('--activation_fn', type=str, default='relu', help='What activation function to use in the MADEs.')
-parser.add_argument('--input_order', type=str, default='sequential', help='What input order to use (sequential | random).')
+parser.add_argument('--input_order', type=str, default='sequential',
+                    help='What input order to use (sequential | random).')
 parser.add_argument('--conditional', default=False, action='store_true', help='Whether to use a conditional model.')
 parser.add_argument('--no_batch_norm', action='store_true')
 # training params
 parser.add_argument('--batch_size', type=int, default=100)
 parser.add_argument('--n_epochs', type=int, default=50)
-parser.add_argument('--start_epoch', default=0, help='Starting epoch (for logging; to be overwritten when restoring file.')
+parser.add_argument('--start_epoch', default=0,
+                    help='Starting epoch (for logging; to be overwritten when restoring file.')
 parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate.')
-parser.add_argument('--log_interval', type=int, default=1000, help='How often to show loss statistics and save samples.')
+parser.add_argument('--log_interval', type=int, default=1000,
+                    help='How often to show loss statistics and save samples.')
 
 
 # --------------------
@@ -73,7 +78,8 @@ def create_masks(input_size, hidden_size, n_hidden, input_order='sequential', in
         degrees += [torch.arange(input_size)] if input_degrees is None else [input_degrees]
         for _ in range(n_hidden + 1):
             degrees += [torch.arange(hidden_size) % (input_size - 1)]
-        degrees += [torch.arange(input_size) % input_size - 1] if input_degrees is None else [input_degrees % input_size - 1]
+        degrees += [torch.arange(input_size) % input_size - 1] if input_degrees is None else [
+            input_degrees % input_size - 1]
 
     elif input_order == 'random':
         degrees += [torch.randperm(input_size)] if input_degrees is None else [input_degrees]
@@ -81,7 +87,8 @@ def create_masks(input_size, hidden_size, n_hidden, input_order='sequential', in
             min_prev_degree = min(degrees[-1].min().item(), input_size - 1)
             degrees += [torch.randint(min_prev_degree, input_size, (hidden_size,))]
         min_prev_degree = min(degrees[-1].min().item(), input_size - 1)
-        degrees += [torch.randint(min_prev_degree, input_size, (input_size,)) - 1] if input_degrees is None else [input_degrees - 1]
+        degrees += [torch.randint(min_prev_degree, input_size, (input_size,)) - 1] if input_degrees is None else [
+            input_degrees - 1]
 
     # construct masks
     masks = []
@@ -93,6 +100,7 @@ def create_masks(input_size, hidden_size, n_hidden, input_order='sequential', in
 
 class MaskedLinear(nn.Linear):
     """ MADE building block layer """
+
     def __init__(self, input_size, n_outputs, mask, cond_label_size=None):
         super().__init__(input_size, n_outputs)
 
@@ -116,6 +124,7 @@ class MaskedLinear(nn.Linear):
 
 class LinearMaskedCoupling(nn.Module):
     """ Modified RealNVP Coupling Layers per the MAF paper """
+
     def __init__(self, input_size, hidden_size, n_hidden, mask, cond_label_size=None):
         super().__init__()
 
@@ -141,9 +150,11 @@ class LinearMaskedCoupling(nn.Module):
         # run through model
         s = self.s_net(mx if y is None else torch.cat([y, mx], dim=1))
         t = self.t_net(mx if y is None else torch.cat([y, mx], dim=1))
-        u = mx + (1 - self.mask) * (x - t) * torch.exp(-s)  # cf RealNVP eq 8 where u corresponds to x (here we're modeling u)
+        u = mx + (1 - self.mask) * (x - t) * torch.exp(
+            -s)  # cf RealNVP eq 8 where u corresponds to x (here we're modeling u)
 
-        log_abs_det_jacobian = - (1 - self.mask) * s  # log det du/dx; cf RealNVP 8 and 6; note, sum over input_size done at model log_prob
+        log_abs_det_jacobian = - (
+                    1 - self.mask) * s  # log det du/dx; cf RealNVP 8 and 6; note, sum over input_size done at model log_prob
 
         return u, log_abs_det_jacobian
 
@@ -163,6 +174,7 @@ class LinearMaskedCoupling(nn.Module):
 
 class BatchNorm(nn.Module):
     """ RealNVP BatchNorm layer """
+
     def __init__(self, input_size, momentum=0.9, eps=1e-5):
         super().__init__()
         self.momentum = momentum
@@ -177,7 +189,7 @@ class BatchNorm(nn.Module):
     def forward(self, x, cond_y=None):
         if self.training:
             self.batch_mean = x.mean(0)
-            self.batch_var = x.var(0) # note MAF paper uses biased variance estimate; ie x.var(0, unbiased=False)
+            self.batch_var = x.var(0)  # note MAF paper uses biased variance estimate; ie x.var(0, unbiased=False)
 
             # update running mean
             self.running_mean.mul_(self.momentum).add_(self.batch_mean.data * (1 - self.momentum))
@@ -195,8 +207,8 @@ class BatchNorm(nn.Module):
 
         # compute log_abs_det_jacobian (cf RealNVP paper)
         log_abs_det_jacobian = self.log_gamma - 0.5 * torch.log(var + self.eps)
-#        print('in sum log var {:6.3f} ; out sum log var {:6.3f}; sum log det {:8.3f}; mean log_gamma {:5.3f}; mean beta {:5.3f}'.format(
-#            (var + self.eps).log().sum().data.numpy(), y.var(0).log().sum().data.numpy(), log_abs_det_jacobian.mean(0).item(), self.log_gamma.mean(), self.beta.mean()))
+        #        print('in sum log var {:6.3f} ; out sum log var {:6.3f}; sum log det {:8.3f}; mean log_gamma {:5.3f}; mean beta {:5.3f}'.format(
+        #            (var + self.eps).log().sum().data.numpy(), y.var(0).log().sum().data.numpy(), log_abs_det_jacobian.mean(0).item(), self.log_gamma.mean(), self.beta.mean()))
         return y, log_abs_det_jacobian.expand_as(x)
 
     def inverse(self, y, cond_y=None):
@@ -217,6 +229,7 @@ class BatchNorm(nn.Module):
 
 class FlowSequential(nn.Sequential):
     """ Container for layers of a normalizing flow """
+
     def forward(self, x, y):
         sum_log_abs_det_jacobians = 0
         for module in self:
@@ -231,12 +244,14 @@ class FlowSequential(nn.Sequential):
             sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + log_abs_det_jacobian
         return u, sum_log_abs_det_jacobians
 
+
 # --------------------
 # Models
 # --------------------
 
 class MADE(nn.Module):
-    def __init__(self, input_size, hidden_size, n_hidden, cond_label_size=None, activation='relu', input_order='sequential', input_degrees=None):
+    def __init__(self, input_size, hidden_size, n_hidden, cond_label_size=None, activation='relu',
+                 input_order='sequential', input_degrees=None):
         """
         Args:
             input_size -- scalar; dim of inputs
@@ -268,7 +283,7 @@ class MADE(nn.Module):
         self.net = []
         for m in masks[1:-1]:
             self.net += [activation_fn, MaskedLinear(hidden_size, hidden_size, m)]
-        self.net += [activation_fn, MaskedLinear(hidden_size, 2 * input_size, masks[-1].repeat(2,1))]
+        self.net += [activation_fn, MaskedLinear(hidden_size, 2 * input_size, masks[-1].repeat(2, 1))]
         self.net = nn.Sequential(*self.net)
 
     @property
@@ -290,7 +305,7 @@ class MADE(nn.Module):
         # run through reverse model
         for i in self.input_degrees:
             m, loga = self.net(self.net_input(x, y)).chunk(chunks=2, dim=1)
-            x[:,i] = u[:,i] * torch.exp(loga[:,i]) + m[:,i]
+            x[:, i] = u[:, i] * torch.exp(loga[:, i]) + m[:, i]
         log_abs_det_jacobian = loga
         return x, log_abs_det_jacobian
 
@@ -301,7 +316,9 @@ class MADE(nn.Module):
 
 class MADEMOG(nn.Module):
     """ Mixture of Gaussians MADE """
-    def __init__(self, n_components, input_size, hidden_size, n_hidden, cond_label_size=None, activation='relu', input_order='sequential', input_degrees=None):
+
+    def __init__(self, n_components, input_size, hidden_size, n_hidden, cond_label_size=None, activation='relu',
+                 input_order='sequential', input_degrees=None):
         """
         Args:
             n_components -- scalar; number of gauassian components in the mixture
@@ -336,7 +353,8 @@ class MADEMOG(nn.Module):
         self.net = []
         for m in masks[1:-1]:
             self.net += [activation_fn, MaskedLinear(hidden_size, hidden_size, m)]
-        self.net += [activation_fn, MaskedLinear(hidden_size, n_components * 3 * input_size, masks[-1].repeat(n_components * 3,1))]
+        self.net += [activation_fn,
+                     MaskedLinear(hidden_size, n_components * 3 * input_size, masks[-1].repeat(n_components * 3, 1))]
         self.net = nn.Sequential(*self.net)
 
     @property
@@ -366,26 +384,29 @@ class MADEMOG(nn.Module):
         # MAF eq 3
         # run through reverse model along each L
         for i in self.input_degrees:
-            m, loga, logr = self.net(self.net_input(x, y)).view(N, C, 3 * L).chunk(chunks=3, dim=-1)  # out 3 x (N, C, L)
+            m, loga, logr = self.net(self.net_input(x, y)).view(N, C, 3 * L).chunk(chunks=3,
+                                                                                   dim=-1)  # out 3 x (N, C, L)
             # normalize cluster responsibilities and sample cluster assignments from a categorical dist
             logr = logr - logr.logsumexp(1, keepdim=True)  # out (N, C, L)
-            z = D.Categorical(logits=logr[:,:,i]).sample().unsqueeze(-1)  # out (N, 1)
-            u_z = torch.gather(u[:,:,i], 1, z).squeeze()  # out (N, 1)
-            m_z = torch.gather(m[:,:,i], 1, z).squeeze()  # out (N, 1)
-            loga_z = torch.gather(loga[:,:,i], 1, z).squeeze()
-            x[:,i] = u_z * torch.exp(loga_z) + m_z
+            z = D.Categorical(logits=logr[:, :, i]).sample().unsqueeze(-1)  # out (N, 1)
+            u_z = torch.gather(u[:, :, i], 1, z).squeeze()  # out (N, 1)
+            m_z = torch.gather(m[:, :, i], 1, z).squeeze()  # out (N, 1)
+            loga_z = torch.gather(loga[:, :, i], 1, z).squeeze()
+            x[:, i] = u_z * torch.exp(loga_z) + m_z
         log_abs_det_jacobian = loga
         return x, log_abs_det_jacobian
 
     def log_prob(self, x, y=None):
         u, log_abs_det_jacobian = self.forward(x, y)  # u = (N,C,L); log_abs_det_jacobian = (N,C,L)
         # marginalize cluster probs
-        log_probs = torch.logsumexp(self.logr + self.base_dist.log_prob(u) + log_abs_det_jacobian, dim=1)  # sum over C; out (N, L)
+        log_probs = torch.logsumexp(self.logr + self.base_dist.log_prob(u) + log_abs_det_jacobian,
+                                    dim=1)  # sum over C; out (N, L)
         return log_probs.sum(1)  # sum over L; out (N,)
 
 
 class MAF(nn.Module):
-    def __init__(self, n_blocks, input_size, hidden_size, n_hidden, cond_label_size=None, activation='relu', input_order='sequential', batch_norm=True):
+    def __init__(self, n_blocks, input_size, hidden_size, n_hidden, cond_label_size=None, activation='relu',
+                 input_order='sequential', batch_norm=True):
         super().__init__()
         # base distribution for calculation of log prob under the model
         self.register_buffer('base_dist_mean', torch.zeros(input_size))
@@ -395,7 +416,8 @@ class MAF(nn.Module):
         modules = []
         self.input_degrees = None
         for i in range(n_blocks):
-            modules += [MADE(input_size, hidden_size, n_hidden, cond_label_size, activation, input_order, self.input_degrees)]
+            modules += [
+                MADE(input_size, hidden_size, n_hidden, cond_label_size, activation, input_order, self.input_degrees)]
             self.input_degrees = modules[-1].input_degrees.flip(0)
             modules += batch_norm * [BatchNorm(input_size)]
 
@@ -418,17 +440,21 @@ class MAF(nn.Module):
 
 class MAFMOG(nn.Module):
     """ MAF on mixture of gaussian MADE """
-    def __init__(self, n_blocks, n_components, input_size, hidden_size, n_hidden, cond_label_size=None, activation='relu',
+
+    def __init__(self, n_blocks, n_components, input_size, hidden_size, n_hidden, cond_label_size=None,
+                 activation='relu',
                  input_order='sequential', batch_norm=True):
         super().__init__()
         # base distribution for calculation of log prob under the model
         self.register_buffer('base_dist_mean', torch.zeros(input_size))
         self.register_buffer('base_dist_var', torch.ones(input_size))
 
-        self.maf = MAF(n_blocks, input_size, hidden_size, n_hidden, cond_label_size, activation, input_order, batch_norm)
+        self.maf = MAF(n_blocks, input_size, hidden_size, n_hidden, cond_label_size, activation, input_order,
+                       batch_norm)
         # get reversed input order from the last layer (note in maf model, input_degrees are already flipped in for-loop model constructor
-        input_degrees = self.maf.input_degrees#.flip(0)
-        self.mademog = MADEMOG(n_components, input_size, hidden_size, n_hidden, cond_label_size, activation, input_order, input_degrees)
+        input_degrees = self.maf.input_degrees  # .flip(0)
+        self.mademog = MADEMOG(n_components, input_size, hidden_size, n_hidden, cond_label_size, activation,
+                               input_order, input_degrees)
 
     @property
     def base_dist(self):
@@ -449,7 +475,8 @@ class MAFMOG(nn.Module):
     def log_prob(self, x, y=None):
         u, log_abs_det_jacobian = self.forward(x, y)  # u = (N,C,L); log_abs_det_jacobian = (N,C,L)
         # marginalize cluster probs
-        log_probs = torch.logsumexp(self.mademog.logr + self.base_dist.log_prob(u) + log_abs_det_jacobian, dim=1)  # out (N, L)
+        log_probs = torch.logsumexp(self.mademog.logr + self.base_dist.log_prob(u) + log_abs_det_jacobian,
+                                    dim=1)  # out (N, L)
         return log_probs.sum(1)  # out (N,)
 
 
@@ -491,7 +518,6 @@ class RealNVP(nn.Module):
 # --------------------
 
 def train(model, dataloader, optimizer, epoch, args):
-
     for i, data in enumerate(dataloader):
         model.train()
 
@@ -513,6 +539,7 @@ def train(model, dataloader, optimizer, epoch, args):
             print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
                 epoch, args.start_epoch + args.n_epochs, i, len(dataloader), loss.item()))
 
+
 @torch.no_grad()
 def evaluate(model, dataloader, epoch, args):
     model.eval()
@@ -525,14 +552,14 @@ def evaluate(model, dataloader, epoch, args):
         for i in range(args.cond_label_size):
             # make one-hot labels
             labels = torch.zeros(args.batch_size, args.cond_label_size).to(args.device)
-            labels[:,i] = 1
+            labels[:, i] = 1
 
             for x, y in dataloader:
                 x = x.view(x.shape[0], -1).to(args.device)
                 loglike[i].append(model.log_prob(x, labels))
 
-            loglike[i] = torch.cat(loglike[i], dim=0)   # cat along data dim under this label
-        loglike = torch.stack(loglike, dim=1)           # cat all data along label dim
+            loglike[i] = torch.cat(loglike[i], dim=0)  # cat along data dim under this label
+        loglike = torch.stack(loglike, dim=1)  # cat all data along label dim
 
         # log p(x) = log ∑_y p(x,y) = log ∑_y p(x|y)p(y)
         # assume uniform prior      = log p(y) ∑_y p(x|y) = log p(y) + log ∑_y p(x|y)
@@ -548,10 +575,12 @@ def evaluate(model, dataloader, epoch, args):
         logprobs = torch.cat(logprobs, dim=0).to(args.device)
 
     logprob_mean, logprob_std = logprobs.mean(0), 2 * logprobs.var(0).sqrt() / math.sqrt(len(dataloader.dataset))
-    output = 'Evaluate ' + (epoch != None)*'(epoch {}) -- '.format(epoch) + 'logp(x) = {:.3f} +/- {:.3f}'.format(logprob_mean, logprob_std)
+    output = 'Evaluate ' + (epoch != None) * '(epoch {}) -- '.format(epoch) + 'logp(x) = {:.3f} +/- {:.3f}'.format(
+        logprob_mean, logprob_std)
     print(output)
     print(output, file=open(args.results_file, 'a'))
     return logprob_mean, logprob_std
+
 
 @torch.no_grad()
 def generate(model, dataset_lam, args, step=None, n_row=10):
@@ -567,14 +596,15 @@ def generate(model, dataset_lam, args, step=None, n_row=10):
             u = model.base_dist.sample((n_row, args.n_components)).squeeze()
             labels_i = labels[i].expand(n_row, -1)
             sample, _ = model.inverse(u, labels_i)
-            log_probs = model.log_prob(sample, labels_i).sort(0)[1].flip(0)  # sort by log_prob; take argsort idxs; flip high to low
+            log_probs = model.log_prob(sample, labels_i).sort(0)[1].flip(
+                0)  # sort by log_prob; take argsort idxs; flip high to low
             samples.append(sample[log_probs])
 
         samples = torch.cat(samples, dim=0)
 
     # unconditional model
     else:
-        u = model.base_dist.sample((n_row**2, args.n_components)).squeeze()
+        u = model.base_dist.sample((n_row ** 2, args.n_components)).squeeze()
         samples, _ = model.inverse(u)
         log_probs = model.log_prob(samples).sort(0)[1].flip(0)  # sort by log_prob; take argsort idxs; flip high to low
         samples = samples[log_probs]
@@ -582,8 +612,9 @@ def generate(model, dataset_lam, args, step=None, n_row=10):
     # convert and save images
     samples = samples.view(samples.shape[0], *args.input_dims)
     samples = (torch.sigmoid(samples) - dataset_lam) / (1 - 2 * dataset_lam)
-    filename = 'generated_samples' + (step != None)*'_epoch_{}'.format(step) + '.png'
+    filename = 'generated_samples' + (step != None) * '_epoch_{}'.format(step) + '.png'
     save_image(samples, os.path.join(args.output_dir, filename), nrow=n_row, normalize=True)
+
 
 def train_and_evaluate(model, train_loader, test_loader, optimizer, args):
     best_eval_logprob = float('-inf')
@@ -596,7 +627,7 @@ def train_and_evaluate(model, train_loader, test_loader, optimizer, args):
         torch.save({'epoch': i,
                     'model_state': model.state_dict(),
                     'optimizer_state': optimizer.state_dict()},
-                    os.path.join(args.output_dir, 'model_checkpoint.pt'))
+                   os.path.join(args.output_dir, 'model_checkpoint.pt'))
         # save model only
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'model_state.pt'))
 
@@ -606,13 +637,14 @@ def train_and_evaluate(model, train_loader, test_loader, optimizer, args):
             torch.save({'epoch': i,
                         'model_state': model.state_dict(),
                         'optimizer_state': optimizer.state_dict()},
-                        os.path.join(args.output_dir, 'best_model_checkpoint.pt'))
+                       os.path.join(args.output_dir, 'best_model_checkpoint.pt'))
 
         # plot sample
         if args.dataset == 'TOY':
             plot_sample_and_density(model, train_loader.dataset.base_dist, args, step=i)
         if args.dataset == 'MNIST':
             generate(model, train_loader.dataset.lam, args, step=i)
+
 
 # --------------------
 # Plot
@@ -632,7 +664,7 @@ def plot_density(dist, ax, ranges, flip_var_order=False):
 
     # run uniform grid through model and plot
     density = dist.log_prob(xy).exp()
-    ax.contour(xx, yy, density.view(n,n).data.numpy())
+    ax.contour(xx, yy, density.view(n, n).data.numpy())
 
     # format
     ax.set_xlim(xmin, xmax)
@@ -640,8 +672,9 @@ def plot_density(dist, ax, ranges, flip_var_order=False):
     ax.set_xticks([xmin, xmax])
     ax.set_yticks([ymin, ymax])
 
+
 def plot_dist_sample(data, ax, ranges):
-    ax.scatter(data[:,0].data.numpy(), data[:,1].data.numpy(), s=10, alpha=0.4)
+    ax.scatter(data[:, 0].data.numpy(), data[:, 1].data.numpy(), s=10, alpha=0.4)
     # format
     (xmin, xmax), (ymin, ymax) = ranges
     ax.set_xlim(xmin, xmax)
@@ -649,9 +682,11 @@ def plot_dist_sample(data, ax, ranges):
     ax.set_xticks([xmin, xmax])
     ax.set_yticks([ymin, ymax])
 
-def plot_sample_and_density(model, target_dist, args, ranges_density=[[-5,20],[-10,10]], ranges_sample=[[-4,4],[-4,4]], step=None):
+
+def plot_sample_and_density(model, target_dist, args, ranges_density=[[-5, 20], [-10, 10]],
+                            ranges_sample=[[-4, 4], [-4, 4]], step=None):
     model.eval()
-    fig, axs = plt.subplots(1, 2, figsize=(6,3))
+    fig, axs = plt.subplots(1, 2, figsize=(6, 3))
 
     # sample target distribution and pass through model
     data = target_dist.sample((2000,))
@@ -664,9 +699,8 @@ def plot_sample_and_density(model, target_dist, args, ranges_density=[[-5,20],[-
     # format and save
     matplotlib.rcParams.update({'xtick.labelsize': 'xx-small', 'ytick.labelsize': 'xx-small'})
     plt.tight_layout()
-    plt.savefig(os.path.join(args.output_dir, 'sample' + (step != None)*'_epoch_{}'.format(step) + '.png'))
+    plt.savefig(os.path.join(args.output_dir, 'sample' + (step != None) * '_epoch_{}'.format(step) + '.png'))
     plt.close()
-
 
 
 # --------------------
@@ -687,8 +721,10 @@ if __name__ == '__main__':
     if args.device.type == 'cuda': torch.cuda.manual_seed(args.seed)
 
     # load data
-    if args.conditional: assert args.dataset in ['MNIST', 'CIFAR10'], 'Conditional inputs only available for labeled datasets MNIST and CIFAR10.'
-    train_dataloader, test_dataloader = fetch_dataloaders(args.dataset, args.batch_size, args.device, args.flip_toy_var_order)
+    if args.conditional: assert args.dataset in ['MNIST',
+                                                 'CIFAR10'], 'Conditional inputs only available for labeled datasets MNIST and CIFAR10.'
+    train_dataloader, test_dataloader = fetch_dataloaders(args.dataset, args.batch_size, args.device,
+                                                          args.flip_toy_var_order)
     args.input_size = train_dataloader.dataset.input_size
     args.input_dims = train_dataloader.dataset.input_dims
     args.cond_label_size = train_dataloader.dataset.label_size if args.conditional else None
@@ -700,15 +736,16 @@ if __name__ == '__main__':
     elif args.model == 'mademog':
         assert args.n_components > 1, 'Specify more than 1 component for mixture of gaussians models.'
         model = MADEMOG(args.n_components, args.input_size, args.hidden_size, args.n_hidden, args.cond_label_size,
-                     args.activation_fn, args.input_order)
+                        args.activation_fn, args.input_order)
     elif args.model == 'maf':
         model = MAF(args.n_blocks, args.input_size, args.hidden_size, args.n_hidden, args.cond_label_size,
                     args.activation_fn, args.input_order, batch_norm=not args.no_batch_norm)
     elif args.model == 'mafmog':
         assert args.n_components > 1, 'Specify more than 1 component for mixture of gaussians models.'
-        model = MAFMOG(args.n_blocks, args.n_components, args.input_size, args.hidden_size, args.n_hidden, args.cond_label_size,
-                    args.activation_fn, args.input_order, batch_norm=not args.no_batch_norm)
-    elif args.model =='realnvp':
+        model = MAFMOG(args.n_blocks, args.n_components, args.input_size, args.hidden_size, args.n_hidden,
+                       args.cond_label_size,
+                       args.activation_fn, args.input_order, batch_norm=not args.no_batch_norm)
+    elif args.model == 'realnvp':
         model = RealNVP(args.n_blocks, args.input_size, args.hidden_size, args.n_hidden, args.cond_label_size,
                         batch_norm=not args.no_batch_norm)
     else:
@@ -742,8 +779,7 @@ if __name__ == '__main__':
     if args.generate:
         if args.dataset == 'TOY':
             base_dist = train_dataloader.dataset.base_dist
-            plot_sample_and_density(model, base_dist, args, ranges_density=[[-15,4],[-3,3]], ranges_sample=[[-1.5,1.5],[-3,3]])
+            plot_sample_and_density(model, base_dist, args, ranges_density=[[-15, 4], [-3, 3]],
+                                    ranges_sample=[[-1.5, 1.5], [-3, 3]])
         elif args.dataset == 'MNIST':
             generate(model, train_dataloader.dataset.lam, args)
-
-
